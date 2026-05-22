@@ -30,7 +30,7 @@ Stop maintaining infrastructure configuration in multiple places. Keep your sing
 
 ```bash
 # Clone the repository
-git clone https://github.com/sfloess/notion2config.git
+git clone https://github.com/FlossWare/notion2config.git
 cd notion2config
 
 # Set your Notion integration token
