@@ -1,0 +1,15 @@
+[Unit]
+Description=Update Ansible inventory from Notion
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/notion2config/token.env
+ExecStart=/opt/notion2config/examples/workflows/auto-update-ansible.sh
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

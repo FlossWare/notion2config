@@ -18,13 +18,18 @@ Stop maintaining infrastructure configuration in multiple places. Keep your sing
 - 📝 **Change tracking** - Built-in history and comments
 - 🔌 **API access** - Automated config generation
 
-### Current Tools
+### Available Tools
 
+**Infrastructure Tools** (Compute Database):
 - ✅ **dnsmasq** - DHCP and DNS configuration
-- 🚧 **Ansible** - Inventory generation (planned)
-- 🚧 **nginx** - Reverse proxy configs (planned)
-- 🚧 **/etc/hosts** - Host files (planned)
-- 🚧 **Docker Compose** - Container definitions (planned)
+- ✅ **Ansible** - Inventory generation (INI format)
+- ✅ **/etc/hosts** - Host file generation
+- ✅ **Terraform** - tfvars generation
+- ✅ **Prometheus** - Service discovery targets
+
+**Application Tools** (Services Database):
+- ✅ **nginx** - Reverse proxy configuration
+- ✅ **Docker Compose** - Container orchestration
 
 ## Quick Start
 
@@ -36,43 +41,114 @@ cd notion2config
 # Set your Notion integration token
 export NOTION_TOKEN=secret_xxx
 
-# Validate access
-./tests/validate-notion-access.sh <database-id>
+# Validate access to Compute database
+./tests/validate-notion-access.sh <compute-database-id>
 
-# Generate dnsmasq config (dry run)
+# Try any converter (dry run mode):
 ./converters/notion-dnsmasq.sh --dry-run
+./converters/notion-ansible.sh --dry-run
+./converters/notion-hosts.sh --dry-run
+./converters/notion-terraform.sh --dry-run
+./converters/notion-prometheus.sh --dry-run
+
+# For Services database tools, specify database ID:
+./converters/notion-nginx.sh --database <services-db-id> --dry-run
+./converters/notion-docker-compose.sh --database <services-db-id> --dry-run
 
 # Generate to file
-./converters/notion-dnsmasq.sh -o /tmp/dnsmasq-hosts.conf
+./converters/notion-ansible.sh -o inventory.ini
+./converters/notion-terraform.sh -o terraform.tfvars
 ```
+
+## Databases
+
+notion2config uses two Notion databases for different purposes:
+
+### Compute Database
+**Purpose:** Infrastructure hosts (servers, VMs, network devices)  
+**Columns:** Name, IP, MAC, Type, Location, OS  
+**Used by:** dnsmasq, Ansible, /etc/hosts, Terraform, Prometheus  
+**Template:** See [examples/compute-database-template.md](examples/compute-database-template.md)
+
+### Services Database
+**Purpose:** Applications and services (web apps, containers, APIs)  
+**Columns:** Name, Domain, Backend, Port, SSL, Image, Ports, Volumes, Environment  
+**Used by:** nginx, Docker Compose  
+**Template:** See [examples/services-database-template.md](examples/services-database-template.md)
+
+See [docs/database-schemas.md](docs/database-schemas.md) for complete schema documentation.
 
 ## Tools
 
-### notion-dnsmasq.sh
+### Infrastructure Tools (Compute Database)
 
-Generates dnsmasq configuration from a Notion database containing network device inventory.
+#### notion-dnsmasq.sh
+Generates dnsmasq DHCP and DNS configuration.
+- Static DHCP leases (`dhcp-host`)
+- DNS A records (`address`)
+- Auto-reloads dnsmasq service
 
-**Features:**
-- 🔍 Queries Notion database (handles pagination)
-- 🌐 Generates `dhcp-host` entries for static DHCP leases
-- 📇 Generates `address` entries for DNS A records
-- 💾 Backs up existing configs before overwriting
-- 🔄 Auto-reloads dnsmasq service (systemd)
-- 👁️ Dry-run mode for testing
+[Docs](docs/notion-dnsmasq.md) | [Example Output](examples/dnsmasq-output.conf)
+
+#### notion-ansible.sh
+Generates Ansible inventory in INI format.
+- Groups hosts by Type
+- Includes ansible_host, ansible_mac, ansible_os_family variables
+- Ready for ansible-playbook
+
+[Docs](docs/notion-ansible.md) | [Example Output](examples/ansible-inventory.ini)
+
+#### notion-hosts.sh
+Generates /etc/hosts file.
+- IP to hostname mappings
+- Includes localhost entries
+- Sorted by IP address
+
+[Docs](docs/notion-hosts.md) | [Example Output](examples/hosts-output.txt)
+
+#### notion-terraform.sh
+Generates Terraform tfvars file.
+- HCL format
+- compute_hosts map with all attributes
+- Reference in .tf files
+
+[Docs](docs/notion-terraform.md) | [Example Output](examples/terraform.tfvars)
+
+#### notion-prometheus.sh
+Generates Prometheus file service discovery targets.
+- YAML format for file_sd_configs
+- Grouped by Type with labels
+- Auto-discovered by Prometheus
+
+[Docs](docs/notion-prometheus.md) | [Example Output](examples/prometheus-targets.yml)
+
+### Application Tools (Services Database)
+
+#### notion-nginx.sh
+Generates nginx reverse proxy configuration.
+- Server blocks per service
+- SSL/TLS support with auto HTTP→HTTPS redirect
+- Config validation before reload
+
+[Docs](docs/notion-nginx.md) | [Example Output](examples/nginx-services.conf)
 
 **Usage:**
 ```bash
-# Preview output
-./converters/notion-dnsmasq.sh --dry-run
-
-# Generate config file
-./converters/notion-dnsmasq.sh --output /etc/dnsmasq.d/hosts.conf
-
-# Use custom database
-./converters/notion-dnsmasq.sh --database <db-id> -o hosts.conf
+./converters/notion-nginx.sh --database <services-db-id> -o /etc/nginx/conf.d/services.conf
 ```
 
-See [docs/notion-dnsmasq.md](docs/notion-dnsmasq.md) for detailed documentation.
+#### notion-docker-compose.sh
+Generates docker-compose.yml.
+- Docker Compose v3.8 format
+- Supports ports, volumes, environment, networks
+- Config validation
+
+[Docs](docs/notion-docker-compose.md) | [Example Output](examples/docker-compose.yml)
+
+**Usage:**
+```bash
+./converters/notion-docker-compose.sh --database <services-db-id> -o docker-compose.yml
+```
 
 ## Requirements
 
@@ -82,9 +158,14 @@ See [docs/notion-dnsmasq.md](docs/notion-dnsmasq.md) for detailed documentation.
 - **curl** - HTTP requests
 - **jq** - JSON parsing (>= 1.6)
 
-### Tool-Specific
+### Tool-Specific (optional)
 
-- **dnsmasq** - For dnsmasq config generation
+- **dnsmasq** - For dnsmasq config generation and testing
+- **ansible** - For Ansible inventory validation
+- **nginx** - For nginx config testing
+- **docker** or **docker-compose** - For Docker Compose validation
+- **terraform** - For tfvars validation
+- **prometheus** or **promtool** - For Prometheus config validation
 
 ### Installation
 
@@ -128,71 +209,108 @@ https://notion.so/myworkspace/30b3d6434d24819dbc06e0046b140c30?v=...
                               This is your database ID
 ```
 
-## Database Schema
+## Common Features
 
-### Compute Database (for dnsmasq)
+All converters share these capabilities:
 
-**Required columns:**
-
-| Column | Type | Description | Example |
-|--------|------|-------------|---------|
-| **Name** | Title | Hostname | `server-01` |
-| **IP** | Text | IP address | `192.168.1.100` |
-| **MAC** | Text | MAC address (optional) | `aa:bb:cc:dd:ee:ff` |
-
-**Optional columns** (for organization):
-
-| Column | Type | Description |
-|--------|------|-------------|
-| Location | Select | Physical location |
-| Type | Select | Device type |
-| OS | Select | Operating system |
-| Notes | Text | Additional info |
-
-See [examples/compute-database-template.md](examples/compute-database-template.md) for complete template.
+- **🔍 Pagination** - Handles large databases (100+ entries)
+- **💾 Backups** - Creates .bak files before overwriting
+- **👁️ Dry-run** - Preview output with `--dry-run`
+- **🔄 Service reload** - Auto-reloads services when applicable
+- **⚙️ Flexible** - Override database ID with `--database`
+- **🛡️ Error handling** - Validates Notion API responses
+- **📊 Logging** - Progress output to stderr
 
 ## Project Structure
 
 ```
 notion2config/
-├── README.md                       # This file
+├── README.md
 ├── converters/
-│   ├── notion-dnsmasq.sh          # dnsmasq config generator
-│   ├── notion-ansible.sh          # Ansible inventory (planned)
-│   ├── notion-hosts.sh            # /etc/hosts generator (planned)
-│   └── notion-nginx.sh            # nginx config generator (planned)
+│   ├── notion-dnsmasq.sh          # dnsmasq DHCP/DNS config
+│   ├── notion-ansible.sh          # Ansible inventory
+│   ├── notion-hosts.sh            # /etc/hosts file
+│   ├── notion-terraform.sh        # Terraform tfvars
+│   ├── notion-prometheus.sh       # Prometheus targets
+│   ├── notion-nginx.sh            # nginx reverse proxy
+│   └── notion-docker-compose.sh   # Docker Compose
 ├── examples/
 │   ├── compute-database-template.md
+│   ├── services-database-template.md
 │   ├── dnsmasq-output.conf
+│   ├── ansible-inventory.ini
+│   ├── hosts-output.txt
+│   ├── terraform.tfvars
+│   ├── prometheus-targets.yml
+│   ├── nginx-services.conf
+│   ├── docker-compose.yml
 │   └── workflows/
-│       └── auto-update-dnsmasq.sh (planned)
+│       ├── auto-update-ansible.sh
+│       ├── auto-update-prometheus.sh
+│       ├── deploy-nginx-config.sh
+│       └── systemd-timers/
+│           ├── notion2config-ansible.service
+│           ├── notion2config-ansible.timer
+│           └── README.md
 ├── docs/
-│   ├── notion-setup.md (planned)
 │   ├── notion-dnsmasq.md
-│   └── database-schemas.md (planned)
+│   ├── notion-ansible.md
+│   ├── notion-hosts.md
+│   ├── notion-terraform.md
+│   ├── notion-prometheus.md
+│   ├── notion-nginx.md
+│   ├── notion-docker-compose.md
+│   └── database-schemas.md
 └── tests/
     └── validate-notion-access.sh
 ```
 
 ## Usage Examples
 
-### Basic Workflow
+### Basic Workflow (Infrastructure)
 
 ```bash
 # 1. Set up environment
 export NOTION_TOKEN=secret_xxx
+export COMPUTE_DB=30b3d6434d24819dbc06e0046b140c30  # Your Compute database ID
 
 # 2. Test access (dry run)
 ./converters/notion-dnsmasq.sh --dry-run
+./converters/notion-ansible.sh --dry-run
 
-# 3. Generate config
+# 3. Generate all infrastructure configs
 ./converters/notion-dnsmasq.sh -o /tmp/dnsmasq-hosts.conf
+./converters/notion-ansible.sh -o /tmp/inventory.ini
+./converters/notion-hosts.sh -o /tmp/hosts
+./converters/notion-terraform.sh -o /tmp/terraform.tfvars
+./converters/notion-prometheus.sh -o /tmp/prometheus-targets.yml
 
-# 4. Review output
-cat /tmp/dnsmasq-hosts.conf
+# 4. Review and deploy
+ansible-inventory -i /tmp/inventory.ini --list
+terraform plan -var-file=/tmp/terraform.tfvars
+sudo cp /tmp/dnsmasq-hosts.conf /etc/dnsmasq.d/hosts.conf
+```
 
-# 5. Deploy (requires sudo)
-sudo ./converters/notion-dnsmasq.sh -o /etc/dnsmasq.d/hosts.conf
+### Basic Workflow (Services)
+
+```bash
+# 1. Set up environment
+export NOTION_TOKEN=secret_xxx
+export SERVICES_DB=your-services-database-id
+
+# 2. Test (dry run)
+./converters/notion-nginx.sh --database $SERVICES_DB --dry-run
+./converters/notion-docker-compose.sh --database $SERVICES_DB --dry-run
+
+# 3. Generate configs
+./converters/notion-nginx.sh -d $SERVICES_DB -o /tmp/nginx-services.conf
+./converters/notion-docker-compose.sh -d $SERVICES_DB -o /tmp/docker-compose.yml
+
+# 4. Deploy
+sudo cp /tmp/nginx-services.conf /etc/nginx/conf.d/services.conf
+sudo nginx -t && sudo systemctl reload nginx
+
+docker-compose -f /tmp/docker-compose.yml up -d
 ```
 
 ### Automated Updates
@@ -290,37 +408,69 @@ dnsmasq --test
 
 ## Roadmap
 
+### Completed (v2.0.0)
+- [x] Ansible inventory generator
+- [x] /etc/hosts generator
+- [x] nginx reverse proxy configs
+- [x] Docker Compose generator
+- [x] Terraform variables generator
+- [x] Prometheus service discovery
+- [x] Comprehensive documentation
+- [x] Example outputs and templates
+- [x] Workflow automation examples
+
 ### Short Term
-- [ ] Ansible inventory generator
-- [ ] /etc/hosts generator
-- [ ] Validation tests
-- [ ] CI/CD examples
+- [ ] Validation test suite
+- [ ] CI/CD GitHub Actions workflows
+- [ ] Additional database templates (HAProxy, Kubernetes)
+- [ ] Web UI for configuration preview
 
 ### Medium Term
-- [ ] nginx reverse proxy configs
-- [ ] Docker Compose generator
-- [ ] Terraform variables
-- [ ] Prometheus service discovery
+- [ ] Multi-database aggregation
+- [ ] Template customization system
+- [ ] Webhook-based auto-updates
+- [ ] Monitoring/metrics integration
 
 ### Long Term
-- [ ] Web UI for configuration
-- [ ] Multi-database support
-- [ ] Template system
-- [ ] Real-time sync via webhooks
+- [ ] GUI configuration builder
+- [ ] Plugin system for custom converters
+- [ ] Real-time collaboration features
+- [ ] Change approval workflows
 
 ## Contributing
 
-Contributions welcome! Ideas for new converters:
+Contributions welcome! See existing tools in `converters/` as reference implementations.
 
-- **Ansible inventory** - Generate inventory from Notion
-- **nginx configs** - Reverse proxy from services database
-- **Docker Compose** - Container definitions
-- **Terraform vars** - Generate tfvars from Notion
-- **Prometheus targets** - Service discovery
+### Converter Development Pattern
+
+All converters follow this structure:
+1. Bash script using curl + jq
+2. Notion API pagination support
+3. Command-line args: `--output`, `--dry-run`, `--token`, `--database`
+4. Three output modes: stdout, file, dry-run
+5. Backup before overwrite (.bak)
+6. Service reload (if applicable)
+7. Comprehensive documentation in `docs/`
+8. Example output in `examples/`
+
+### Ideas for New Converters
+
 - **HAProxy** - Load balancer configs
-- **Kubernetes** - Resource definitions
+- **Kubernetes** - Resource manifests (Deployments, Services)
+- **Consul** - Service catalog registration
+- **systemd-networkd** - Network interface configs
+- **PowerDNS** - Zone files
+- **Zabbix** - Host monitoring configs
+- **pfSense/OPNsense** - Firewall rules (XML)
 
-See existing tools in `converters/` as reference implementations.
+### Pull Request Guidelines
+
+- Follow existing bash style and patterns
+- Include documentation (follow `docs/notion-*.md` structure)
+- Include example output
+- Test with `--dry-run` mode
+- Support pagination for large databases
+- Handle missing/optional columns gracefully
 
 ## Examples
 
@@ -364,9 +514,24 @@ This project is provided as-is for educational and practical use.
 
 ## Version
 
-Current version: 1.0.0
+Current version: **2.0.0**
 
 ## Changelog
+
+### 2.0.0 (2026-05-22)
+- **Major release:** All planned converters implemented
+- Added notion-ansible.sh - Generate Ansible inventory (INI format)
+- Added notion-hosts.sh - Generate /etc/hosts files
+- Added notion-terraform.sh - Generate Terraform tfvars (HCL format)
+- Added notion-prometheus.sh - Generate Prometheus service discovery targets
+- Added notion-nginx.sh - Generate nginx reverse proxy configurations
+- Added notion-docker-compose.sh - Generate Docker Compose files
+- Introduced Services database schema for application-level configs
+- Comprehensive documentation for all 7 converters
+- Example outputs for all tools
+- Workflow automation examples (cron, systemd timers)
+- Database schema reference documentation
+- Services database template
 
 ### 1.0.0 (2026-05-21)
 - Initial release
@@ -374,5 +539,5 @@ Current version: 1.0.0
 - Notion API integration with pagination
 - Auto-reload functionality
 - Validation tools
-- Complete documentation
+- Compute database template
 - FreeBSD support

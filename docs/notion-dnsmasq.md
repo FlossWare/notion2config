@@ -418,3 +418,25 @@ Example output:
 - [Notion API Documentation](https://developers.notion.com/)
 - [dnsmasq Man Page](http://www.thekelleys.org.uk/dnsmasq/docs/dnsmasq-man.html)
 - [Database Schema Template](../examples/compute-database-template.md)
+
+## Filtering Options (v2.0+)
+
+Generate configs for specific subsets:
+
+```bash
+# Only network infrastructure
+./notion-dnsmasq.sh --filter-type network -o network.conf
+
+# Specific location
+./notion-dnsmasq.sh --filter-location datacenter-1
+
+# Active devices only
+./notion-dnsmasq.sh --filter-status Active
+```
+
+## Large Database Support (v2.0+)
+
+- Uses temp files for unlimited database size
+- Handles 1000+ device inventories
+- No memory or argument length limits
+- Automatic pagination for large result sets

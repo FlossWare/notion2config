@@ -1,0 +1,11 @@
+[Unit]
+Description=Update Ansible inventory from Notion every hour
+Requires=notion2config-ansible.service
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+Unit=notion2config-ansible.service
+
+[Install]
+WantedBy=timers.target
