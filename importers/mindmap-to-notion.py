@@ -177,6 +177,8 @@ def collect_blocks(node, depth=0, max_blocks=95):
 
         if depth == 0:
             blocks.append(make_text_block("heading_2", text))
+            sub_blocks = collect_blocks(child, 1, max_blocks - len(blocks))
+            blocks.extend(sub_blocks)
         elif depth == 1:
             blocks.append(make_toggle_block(text, child, depth + 1, max_blocks - len(blocks)))
         else:
@@ -198,6 +200,26 @@ def make_text_block(block_type, text):
     }
 
 
+def flatten_node_to_bullets(node, prefix="", max_items=15):
+    items = []
+    for child in node.findall('node'):
+        if len(items) >= max_items:
+            break
+        t = node_text(child)
+        if not t:
+            continue
+        if has_secrets(t):
+            t = "[REDACTED]"
+        items.append(make_text_block("bulleted_list_item", f"{prefix}{t}"[:2000]))
+        for gc in child.findall('node'):
+            if len(items) >= max_items:
+                break
+            gt = node_text(gc)
+            if gt and not has_secrets(gt):
+                items.append(make_text_block("bulleted_list_item", f"  → {gt}"[:2000]))
+    return items
+
+
 def make_toggle_block(text, node, depth, remaining):
     text = text[:2000]
     children_blocks = []
@@ -212,8 +234,12 @@ def make_toggle_block(text, node, depth, remaining):
         child_text = child_text[:2000]
 
         grandchildren = list(child.findall('node'))
-        if grandchildren:
+        if grandchildren and depth < 3:
             children_blocks.append(make_toggle_block(child_text, child, depth + 1, remaining - len(children_blocks)))
+        elif grandchildren:
+            children_blocks.append(make_text_block("bulleted_list_item", child_text))
+            flat = flatten_node_to_bullets(child, "  ", 10)
+            children_blocks.extend(flat[:5])
         else:
             children_blocks.append(make_text_block("bulleted_list_item", child_text))
 
