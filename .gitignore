@@ -35,6 +35,10 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 
+# Idempotency maps (contain real Notion page IDs)
+*_import_map.json
+*_idmap.json
+
 # Temporary files
 tmp/
 temp/
